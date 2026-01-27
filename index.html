@@ -1,3 +1,157 @@
-# Meesho-Label-Spliter
-Its make easy
-new
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Meesho Label Splitter</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- PDF.js -->
+  <script src="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+  <script src="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js"></script>
+
+  <!-- pdf-lib -->
+  <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f7f7f7;
+      padding: 20px;
+    }
+    .box {
+      max-width: 600px;
+      background: #fff;
+      padding: 20px;
+      margin: auto;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    h2 {
+      text-align: center;
+    }
+    .options label {
+      display: block;
+      margin: 8px 0;
+      cursor: pointer;
+    }
+    button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 15px;
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #1d4ed8;
+    }
+    #status {
+      margin-top: 15px;
+      font-weight: bold;
+      text-align: center;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="box">
+    <h2>Meesho Label PDF Splitter</h2>
+
+    <input type="file" id="pdfInput" accept="application/pdf" />
+
+    <div class="options">
+      <h3>Split By</h3>
+
+      <label>
+        <input type="radio" name="mode" value="partner" checked />
+        Delivery Partner wise
+      </label>
+
+      <label>
+        <input type="radio" name="mode" value="sku" />
+        SKU wise
+      </label>
+
+      <label>
+        <input type="radio" name="mode" value="both" />
+        Delivery Partner + SKU wise
+      </label>
+    </div>
+
+    <button onclick="processPDF()">Process PDF</button>
+
+    <div id="status"></div>
+  </div>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  "https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
+
+async function processPDF() {
+  const file = document.getElementById("pdfInput").files[0];
+  if (!file) {
+    alert("Please select a PDF file");
+    return;
+  }
+
+  document.getElementById("status").innerText = "Processing PDF...";
+
+  const mode = document.querySelector('input[name="mode"]:checked').value;
+
+  const buffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+
+  const srcPdf = await PDFLib.PDFDocument.load(buffer);
+  const groups = {};
+
+  for (let i = 0; i < pdf.numPages; i++) {
+    const page = await pdf.getPage(i + 1);
+    const textContent = await page.getTextContent();
+    const text = textContent.items.map(t => t.str).join(" ");
+
+    // ---- Delivery Partner Detection ----
+    let partner = "UNKNOWN";
+    if (text.includes("Xpress Bees")) partner = "XpressBees";
+    else if (text.includes("Delhivery")) partner = "Delhivery";
+    else if (text.includes("Shadowfax")) partner = "Shadowfax";
+
+    // ---- SKU Detection ----
+    let sku = "NOSKU";
+    const skuMatch = text.match(/SKU\s+([A-Z0-9_-]+)/i);
+    if (skuMatch) sku = skuMatch[1];
+
+    let key;
+    if (mode === "partner") key = partner;
+    else if (mode === "sku") key = sku;
+    else key = partner + "_" + sku;
+
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(i);
+  }
+
+  // ---- Create New PDFs ----
+  for (const key in groups) {
+    const newPdf = await PDFLib.PDFDocument.create();
+    const pages = await newPdf.copyPages(srcPdf, groups[key]);
+    pages.forEach(p => newPdf.addPage(p));
+
+    const bytes = await newPdf.save();
+    downloadPDF(bytes, key + ".pdf");
+  }
+
+  document.getElementById("status").innerText = "Done ✅ PDFs downloaded";
+}
+
+function downloadPDF(bytes, filename) {
+  const blob = new Blob([bytes], { type: "application/pdf" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  link.click();
+}
+</script>
+</body>
+  </html>
