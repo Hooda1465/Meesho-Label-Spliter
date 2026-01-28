@@ -125,25 +125,23 @@ async function processPDF() {
     else if (text.includes("Valmo")) partner = "Valmo";
 
       /* ===== SKU Detection ===== */
-    let sku = "NOSKU";
+ // FINAL SKU / PRODUCT KEY LOGIC
+let sku = "NOSKU";
 
-      const productBlockMatch = text.match(
-        /Product Details([\s\S]*?)TAX INVOICE/i
-      );
-      
-      if (productBlockMatch) {
-        const block = productBlockMatch[1];
-        const skuMatch = block.match(/\b([A-Z]{1,6}[0-9]{0,4})\b/);
-        if (skuMatch) sku = skuMatch[1];
-      }
-     console.log(productBlockMatch);
-    console.log(block);
-    console.log(skuMatch);
-      
-      if (sku === "NOSKU") {
-        const fallback = text.match(/\b[A-Z]{2,5}\b/);
-        if (fallback) sku = fallback[0];
-      }
+// normalize text (important)
+const cleanText = text.replace(/\s+/g, " ");
+
+// extract text between "Order No." and "Free Size"
+const match = cleanText.match(/Order No\.\s*(.*?)\s*Free Size/i);
+
+if (match && match[1]) {
+  sku = match[1]
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9 ]/g, "") // safe characters
+    .replace(/\s+/g, "_");      // for file/group key
+}
+
 
   // old code
     // let sku = "NOSKU";
