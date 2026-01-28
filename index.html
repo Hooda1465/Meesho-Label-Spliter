@@ -124,11 +124,30 @@ async function processPDF() {
     else if (text.includes("Shadowfax")) partner = "Shadowfax";
     else if (text.includes("Valmo")) partner = "Valmo";
 
-    /* ===== SKU Detection ===== */
+      /* ===== SKU Detection ===== */
     let sku = "NOSKU";
-    const skuMatch = text.match(/SKU\s+([A-Z0-9_-]+)/i);
-    if (skuMatch) sku = skuMatch[1];
+
+      const productBlockMatch = text.match(
+        /Product Details([\s\S]*?)TAX INVOICE/i
+      );
+      
+      if (productBlockMatch) {
+        const block = productBlockMatch[1];
+        const skuMatch = block.match(/\b([A-Z]{1,6}[0-9]{0,4})\b/);
+        if (skuMatch) sku = skuMatch[1];
+      }
     console.log(sku);
+      
+      if (sku === "NOSKU") {
+        const fallback = text.match(/\b[A-Z]{2,5}\b/);
+        if (fallback) sku = fallback[0];
+      }
+
+  // old code
+    // let sku = "NOSKU";
+    // const skuMatch = text.match(/SKU\s+([A-Z0-9_-]+)/i);
+    // if (skuMatch) sku = skuMatch[1];
+    // console.log(sku);
 
     let key;
     if (mode === "partner") key = partner;
