@@ -132,7 +132,7 @@ async function processPDF() {
       );
       
       if (productBlockMatch) {
-        const block = productBlockMatch[6];
+        const block = productBlockMatch[1];
         const skuMatch = block.match(/\b([A-Z]{1,6}[0-9]{0,4})\b/);
         if (skuMatch) sku = skuMatch[1];
       }
