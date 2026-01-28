@@ -2,12 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Meesho Label PDF Splitter</title>
+  <title>Meesho Label PDF Tool</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
   <!-- PDF.js -->
   <script src="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
-
   <!-- pdf-lib -->
   <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
 
@@ -25,12 +24,12 @@
       border-radius: 8px;
       box-shadow: 0 0 10px rgba(0,0,0,0.1);
     }
-   h1, h2 {
+    h1, h2 {
       text-align: center;
     }
     label {
       display: block;
-      margin: 8px 0;
+      margin: 6px 0;
       cursor: pointer;
     }
     button {
@@ -58,40 +57,34 @@
 <body>
 <div class="container">
   <h1>Godara Traders</h1>
-  <h2>Meesho Label PDF Splitter</h2>
+  <h2>Meesho Label PDF Tool</h2>
 
   <input type="file" id="pdfInput" accept="application/pdf" />
 
-  <h3>Split By</h3>
-  <label>
-    <input type="radio" name="mode" value="partner" checked />
-    Delivery Partner wise
-  </label>
-  <label>
-    <input type="radio" name="mode" value="sku" />
-    SKU wise
-  </label>
-  <label>
-    <input type="radio" name="mode" value="both" />
-    Delivery Partner + SKU wise
+  <h3>Split Mode</h3>
+  <label><input type="radio" name="mode" value="partner" checked> Delivery Partner wise</label>
+  <label><input type="radio" name="mode" value="sku"> SKU wise</label>
+  <label><input type="radio" name="mode" value="both"> Delivery Partner + SKU wise</label>
+
+  <h3>Special Option</h3>
+  <label style="font-weight:bold;">
+    <input type="radio" name="mode" value="combinedSorted">
+    Alphabetical (Partner + SKU) – Single PDF
   </label>
 
   <button onclick="processPDF()">Process PDF</button>
-
   <div id="status"></div>
 </div>
 
 <script>
-/* ===== PDF.js Worker Fix (GitHub Pages Safe) ===== */
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
 async function processPDF() {
   const fileInput = document.getElementById("pdfInput");
   const status = document.getElementById("status");
-
   if (!fileInput.files.length) {
-    alert("Please select a PDF file");
+    alert("Please select a PDF");
     return;
   }
 
@@ -100,9 +93,8 @@ async function processPDF() {
   const mode = document.querySelector('input[name="mode"]:checked').value;
   const file = fileInput.files[0];
 
-  /* ===== Read buffer and CLONE it (IMPORTANT FIX) ===== */
   const buffer = await file.arrayBuffer();
-  const bufferCopy = buffer.slice(0); // prevents detached ArrayBuffer error
+  const bufferCopy = buffer.slice(0);
 
   const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
   const srcPdf = await PDFLib.PDFDocument.load(bufferCopy);
@@ -110,68 +102,71 @@ async function processPDF() {
   const groups = {};
 
   for (let i = 0; i < pdf.numPages; i++) {
-    // small delay for stability
-    await new Promise(r => setTimeout(r, 40));
+    await new Promise(r => setTimeout(r, 30));
 
     const page = await pdf.getPage(i + 1);
     const textContent = await page.getTextContent();
     const text = textContent.items.map(t => t.str).join(" ");
 
-    /* ===== Delivery Partner Detection ===== */
+    /* Delivery Partner */
     let partner = "UNKNOWN";
-    if (text.includes("Xpress Bees")) partner = "XpressBees";
-    else if (text.includes("Delhivery")) partner = "Delhivery";
-    else if (text.includes("Shadowfax")) partner = "Shadowfax";
-    else if (text.includes("Valmo")) partner = "Valmo";
+    if (text.includes("Xpress Bees")) partner = "XPRESSBEES";
+    else if (text.includes("Delhivery")) partner = "DELHIVERY";
+    else if (text.includes("Shadowfax")) partner = "SHADOWFAX";
+    else if (text.includes("Valmo")) partner = "VALMO";
 
-      /* ===== SKU Detection ===== */
- // FINAL SKU / PRODUCT KEY LOGIC
-let sku = "NOSKU";
-
-// normalize text (important)
-const cleanText = text.replace(/\s+/g, " ");
-
-// extract text between "Order No." and "Free Size"
-const match = cleanText.match(/Order No\.\s*(.*?)\s*Free Size/i);
-
-if (match && match[1]) {
-  sku = match[1]
-    .trim()
-    .toUpperCase()
-    .replace(/[^A-Z0-9 ]/g, "") // safe characters
-    .replace(/\s+/g, "_");      // for file/group key
-}
-
-
-  // old code
-    // let sku = "NOSKU";
-    // const skuMatch = text.match(/SKU\s+([A-Z0-9_-]+)/i);
-    // if (skuMatch) sku = skuMatch[1];
-    // console.log(sku);
+    /* SKU / Product Name */
+    let sku = "NOSKU";
+    const cleanText = text.replace(/\s+/g, " ");
+    const match = cleanText.match(/Order No\.\s*(.*?)\s*Free Size/i);
+    if (match && match[1]) {
+      sku = match[1]
+        .trim()
+        .toUpperCase()
+        .replace(/[^A-Z0-9 ]/g, "")
+        .replace(/\s+/g, "_");
+    }
 
     let key;
     if (mode === "partner") key = partner;
     else if (mode === "sku") key = sku;
-    else key = partner + "_" + sku;
+    else key = partner + "__" + sku;
 
     if (!groups[key]) groups[key] = [];
     groups[key].push(i);
   }
 
-  /* ===== Create New PDFs ===== */
-  for (const key in groups) {
-    const newPdf = await PDFLib.PDFDocument.create();
-    const pages = await newPdf.copyPages(srcPdf, groups[key]);
-    pages.forEach(p => newPdf.addPage(p));
+  /* ===== OUTPUT ===== */
+  if (mode === "combinedSorted") {
+    // NEW FEATURE: Single sorted PDF
+    const finalPdf = await PDFLib.PDFDocument.create();
 
-    const bytes = await newPdf.save();
-    downloadPDF(bytes, key + ".pdf");
+    const sortedKeys = Object.keys(groups).sort((a, b) =>
+      a.localeCompare(b)
+    );
 
-    // delay to avoid download blocking
-    await new Promise(r => setTimeout(r, 200));
+    for (const key of sortedKeys) {
+      const pages = await finalPdf.copyPages(srcPdf, groups[key]);
+      pages.forEach(p => finalPdf.addPage(p));
+    }
+
+    const bytes = await finalPdf.save();
+    downloadPDF(bytes, "MEESHO_SORTED_COMBINED.pdf");
+    status.innerText = "Done ✅ Single sorted PDF downloaded";
+
+  } else {
+    // OLD BEHAVIOUR: Multiple PDFs
+    for (const key in groups) {
+      const newPdf = await PDFLib.PDFDocument.create();
+      const pages = await newPdf.copyPages(srcPdf, groups[key]);
+      pages.forEach(p => newPdf.addPage(p));
+
+      const bytes = await newPdf.save();
+      downloadPDF(bytes, key + ".pdf");
+      await new Promise(r => setTimeout(r, 200));
+    }
+    status.innerText = "Done ✅ PDFs downloaded";
   }
-
-  status.innerText = "Done ✅ PDFs downloaded";
 }
 
 function downloadPDF(bytes, filename) {
@@ -179,9 +174,7 @@ function downloadPDF(bytes, filename) {
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
   link.download = filename;
-  document.body.appendChild(link);
   link.click();
-  document.body.removeChild(link);
 }
 </script>
 </body>
