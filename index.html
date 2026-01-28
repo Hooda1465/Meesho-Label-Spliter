@@ -136,6 +136,8 @@ async function processPDF() {
         const skuMatch = block.match(/\b([A-Z]{1,6}[0-9]{0,4})\b/);
         if (skuMatch) sku = skuMatch[1];
       }
+     console.log(productBlockMatch);
+    console.log(block);
     console.log(sku);
       
       if (sku === "NOSKU") {
